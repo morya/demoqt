@@ -36,7 +36,8 @@ jobs:
           if-no-files-found: error
 
   build-macos:
-    runs-on: macos-14
+    # macos-14 镜像已于 2026-11-02 退役；macos-15 为 arm64 (M1)，符合 macos arm64 要求
+    runs-on: macos-15
 
     steps:
       - name: Checkout code
