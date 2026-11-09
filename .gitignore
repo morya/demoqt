@@ -5,3 +5,5 @@ CMakeLists.txt.user
 .vscode/
 .DS_Store
 .omo/*
+# 临时工作交接文档，仅本地留存，不入库
+handover.md
