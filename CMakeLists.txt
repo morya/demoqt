@@ -10,7 +10,7 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 # WIN32：Windows 下不弹 cmd 窗口（其它平台自动忽略）
-add_executable(${PROJECT_NAME} WIN32 main.cpp)
+add_executable(${PROJECT_NAME} WIN32 main.cpp range_selector.cpp recorder.cpp chatbox.cpp)
 
 # 产物名称：Windows 为 demo-settings.exe，macOS 为 demo-settings-macos
 if(APPLE)
