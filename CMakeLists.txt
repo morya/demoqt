@@ -9,10 +9,11 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
-# WIN32：Windows 下不弹 cmd 窗口（其它平台自动忽略）
-add_executable(${PROJECT_NAME} WIN32 main.cpp)
+# WIN32：Windows 下不弹 cmd 窗口；MACOSX_BUNDLE：macOS 下生成 .app
+# bundle（macdeployqt 只支持 bundle 形态，bare exe 无法内嵌 Qt frameworks）
+add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE main.cpp)
 
-# 产物名称：Windows 为 demo-settings.exe，macOS 为 demo-settings-macos
+# 产物名称：Windows 为 demo-settings.exe，macOS 为 demo-settings-macos(.app)
 if(APPLE)
     set(SETTINGS_OUTPUT_NAME "demo-settings-macos")
 else()
@@ -30,6 +31,14 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_RELEASE ${SETTINGS_BUILD_DIR}
     RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${SETTINGS_BUILD_DIR}
     RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${SETTINGS_BUILD_DIR})
+
+if(APPLE)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "demo-settings"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.gouboyun.demo-settings"
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION})
+endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core

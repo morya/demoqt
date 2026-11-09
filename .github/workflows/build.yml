@@ -28,15 +28,26 @@ jobs:
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
           cmake --build build --config Release
 
-      - name: Upload artifact (demo-settings.exe)
+      - name: Collect runtime dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+
+          # 复制主 exe（CMake 已输出到 build/ 根）
+          Copy-Item -Path build\demo-settings.exe -Destination release\ -Force
+
+          # 用 windeployqt 自动部署 Qt 运行时依赖（DLL + platforms/styles 等插件）
+          & "${env:QT_ROOT_DIR}\bin\windeployqt.exe" --release release\demo-settings.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: demo-settings.exe
-          path: build/demo-settings.exe
+          name: demo-settings-windows
+          path: ./release/
           if-no-files-found: error
 
   build-macos:
-    # macos-14 镜像已于 2026-11-02 退役；macos-15 为 arm64 (M1)，符合 macos arm64 要求
     runs-on: macos-15
 
     steps:
@@ -54,9 +65,22 @@ jobs:
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
           cmake --build build --config Release
 
-      - name: Upload artifact (demo-settings-macos)
+      - name: Collect runtime dependencies
+        run: |
+          mkdir -p release
+
+          # 复制 .app bundle（CMake 已输出到 build/ 根）
+          cp -R build/demo-settings-macos.app release/
+
+          # 用 macdeployqt 把 Qt frameworks/plugins 内嵌进 bundle，并修复 install name
+          "${QT_ROOT_DIR}/bin/macdeployqt" release/demo-settings-macos.app
+
+          # 留证据：链接路径应全部指向 @rpath/@executable_path 的 app 内部 frameworks
+          otool -L release/demo-settings-macos.app/Contents/MacOS/demo-settings-macos
+
+      - name: Upload package
         uses: actions/upload-artifact@v4
         with:
           name: demo-settings-macos
-          path: build/demo-settings-macos
+          path: ./release/
           if-no-files-found: error
