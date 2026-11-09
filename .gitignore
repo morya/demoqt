@@ -1,0 +1,7 @@
+build/
+CMakeLists.txt.user
+.qmake.stash
+*.pro.user
+.vscode/
+.DS_Store
+.omo/*
