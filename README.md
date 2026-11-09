@@ -33,3 +33,17 @@
 - 需要提供构建 artifact
     - `demo-settings.exe`
     - `demo-settings-macos`
+
+## 构建结果（CI 已验证全绿）
+
+workflow `Build and Package`（`.github/workflows/build.yml`），run [42593121566](https://github.com/morya/demoqt/actions/runs/42593121566) 两个 job 全部通过，artifact 正常产出：
+
+| job | runner | Qt | artifact |
+| --- | --- | --- | --- |
+| `build-windows` | windows-2022 (x64, MSVC) | 6.8.3 | `demo-settings.exe` |
+| `build-macos` | macos-15 (arm64) | 6.8.3 | `demo-settings-macos` |
+
+两个产物均直接输出在项目根 `build/` 目录下（无子目录）。构建期间修复过两个问题：
+
+1. **Windows 产物路径落空**：MSBuild 多配置生成器仅设置 `RUNTIME_OUTPUT_DIRECTORY` 时会追加 `Release/` 子目录，导致 exe 实际落在 `build/Release/` 而 upload-artifact 找不到文件。修复：`CMakeLists.txt` 逐配置设置 `RUNTIME_OUTPUT_DIRECTORY_DEBUG/RELEASE/RELWITHDEBINFO/MINSIZEREL` 指向 `build/` 根（提交 `87f29d7`）。
+2. **macOS job 排队即被取消**：`macos-14` runner 镜像已于 2026-11-02 退役，job 无 runner 可用、1 秒内被取消。修复：改用 `macos-15`（M1 arm64，满足 macos arm64 要求）（提交 `ce80f2c`）。
