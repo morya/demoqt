@@ -47,14 +47,14 @@ jobs:
           Copy-Item "$qt\plugins\styles\qmodernwindowsstyle.dll" -Destination release\styles\ -Force
 
           # app-local VC++ 运行时（与 mini-pusher 同理：防目标机 redist 过旧）
-          # VCToolsRedistDir 仅在 VS 开发者命令行存在，CI 裸 pwsh 用 vswhere 定位安装路径
+          # VCToolsRedistDir 仅在 VS 开发者命令行存在；镜像内 redist 布局逐轮取证后再固化
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          $crt = Get-ChildItem "$vs\VC\Redist\MSVC" -Directory |
-                   Sort-Object Name -Descending | Select-Object -First 1 |
-                   ForEach-Object { Get-ChildItem "$($_.FullName)\x64" -Directory -Filter 'Microsoft.VC*.CRT' } |
-                   Select-Object -First 1
+          $probe = Get-ChildItem "$vs\VC\Redist" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -in 'vcruntime140.dll','msvcp140.dll' }
+          $probe | Select-Object -ExpandProperty FullName
+          $crtDir = ($probe | Where-Object FullName -match 'x64' | Select-Object -First 1).DirectoryName
+          if (-not $crtDir) { throw "no x64 VC CRT found under $vs\VC\Redist" }
           foreach ($dll in 'vcruntime140.dll','vcruntime140_1.dll','msvcp140.dll') {
-            Copy-Item "$($crt.FullName)\$dll" -Destination release\ -Force
+            Copy-Item "$crtDir\$dll" -Destination release\ -Force
           }
 
           Get-ChildItem -Recurse release | Select-Object -ExpandProperty FullName
