@@ -47,8 +47,12 @@ jobs:
           Copy-Item "$qt\plugins\styles\qmodernwindowsstyle.dll" -Destination release\styles\ -Force
 
           # app-local VC++ 运行时（与 mini-pusher 同理：防目标机 redist 过旧）
-          $crt = Get-ChildItem "$env:VCToolsRedistDir\x64" -Directory -Filter 'Microsoft.VC*.CRT' |
-                   Sort-Object Name -Descending | Select-Object -First 1
+          # VCToolsRedistDir 仅在 VS 开发者命令行存在，CI 裸 pwsh 用 vswhere 定位安装路径
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC" -Directory |
+                   Sort-Object Name -Descending | Select-Object -First 1 |
+                   ForEach-Object { Get-ChildItem "$($_.FullName)\x64" -Directory -Filter 'Microsoft.VC*.CRT' } |
+                   Select-Object -First 1
           foreach ($dll in 'vcruntime140.dll','vcruntime140_1.dll','msvcp140.dll') {
             Copy-Item "$($crt.FullName)\$dll" -Destination release\ -Force
           }
@@ -85,7 +89,9 @@ jobs:
           set -euo pipefail
           QT=.deps/obs-deps-qt6-2026-10-23-arm64
           APP=release/demo-settings-macos.app
-          mkdir -p release "$APP/Contents/Frameworks" "$APP/Contents/PlugIns/platforms"
+          mkdir -p release
+          cp -R build/demo-settings-macos.app release/
+          mkdir -p "$APP/Contents/Frameworks" "$APP/Contents/PlugIns/platforms"
 
           # 从 .deps 装配 bundle（obs-deps Qt 无 macdeployqt，最小集手动）
           for fw in QtCore QtGui QtWidgets; do
