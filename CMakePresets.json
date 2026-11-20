@@ -1,0 +1,96 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "dependencies",
+      "hidden": true,
+      "vendor": {
+        "demoqt": {
+          "dependencies": {
+            "prebuilt": {
+              "version": "2026-10-23",
+              "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
+              "label": "Pre-Built obs-deps",
+              "hashes": {
+                "macos-arm64": "1ed543d91f05b5f77625f106432fb27c504d0a7d57fbe754b612cbb70d121ef9",
+                "windows-x64": "7508972a867a0ef68c26cd8bdba61fd999edd0a92fa9eb9585774de9bf51bfbe"
+              }
+            },
+            "qt6": {
+              "version": "2026-10-23",
+              "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
+              "label": "Pre-Built Qt6 (qtbase subset)",
+              "hashes": {
+                "macos-arm64": "3f9153cd85b68526d865b60bd8b66fc98b945a8acefea77b2ae3a9eb2bf8718a",
+                "windows-x64": "78cd7a138464bb6edcdd3b85fcd63a5a7c69e369629963f3bc395bab74fb3f47"
+              }
+            },
+            "cef": {
+              "version": "7871",
+              "baseUrl": "https://cdn-fastly.obsproject.com/downloads",
+              "label": "Chromium Embedded Framework",
+              "hashes": {
+                "macos-arm64": "f1693ef12b28df06bbd9ebf215c9fe2d84e3066c220b905e71dc033bd5b6fbfc",
+                "windows-x64": "3f120367db3f2314041fef20e67904e5c2c2adf550addbd0e1d2cbbac20a8b9a"
+              },
+              "revision": {
+                "macos-arm64": 2,
+                "windows-x64": 2
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "windows-x64",
+      "displayName": "Windows x64",
+      "inherits": ["base"],
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "macos-arm64",
+      "displayName": "macOS arm64",
+      "inherits": ["base"],
+      "generator": "Unix Makefiles",
+      "cacheVariables": {
+        "CMAKE_OSX_ARCHITECTURES": "arm64"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-x64",
+      "configurePreset": "windows-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "macos-arm64",
+      "configurePreset": "macos-arm64"
+    }
+  ]
+}

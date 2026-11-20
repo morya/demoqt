@@ -17,28 +17,43 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Qt
-        uses: jurplel/install-qt-action@v4
+      # OBS 模型：Qt/deps/CEF 不来自安装器，configure 期由 cmake/deps.cmake 拉取
+      # 并解压到 .deps/。缓存整个 .deps（含下载 zip），key 跟随 CMakePresets 清单变化。
+      - name: Cache .deps
+        uses: actions/cache@v4
         with:
-          version: '6.8.3'
-          cache: true
+          path: ${{ github.workspace }}/.deps
+          key: deps-v1-windows-${{ hashFiles('CMakePresets.json') }}
 
       - name: Configure and Build with CMake
         run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
-          cmake --build build --config Release
+          cmake --preset windows-x64
+          cmake --build --preset windows-x64
 
       - name: Collect runtime dependencies
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release | Out-Null
+          New-Item -ItemType Directory -Force -Path release\platforms, release\styles | Out-Null
 
-          # 复制主 exe（CMake 已输出到 build/ 根）
-          Copy-Item -Path build\demo-settings.exe -Destination release\ -Force
+          Copy-Item build\demo-settings.exe -Destination release\ -Force
 
-          # 用 windeployqt 自动部署 Qt 运行时依赖（DLL + platforms/styles 等插件）
-          & "${env:QT_ROOT_DIR}\bin\windeployqt.exe" --release release\demo-settings.exe
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # qtbase 子集运行时（obs-deps 自编译 Qt，无 windeployqt，手动最小集）
+          $qt = ".deps\obs-deps-qt6-2026-10-23-x64"
+          foreach ($dll in 'Qt6Core.dll','Qt6Gui.dll','Qt6Widgets.dll') {
+            Copy-Item "$qt\bin\$dll" -Destination release\ -Force
+          }
+          Copy-Item "$qt\plugins\platforms\qwindows.dll" -Destination release\platforms\ -Force
+          Copy-Item "$qt\plugins\styles\qmodernwindowsstyle.dll" -Destination release\styles\ -Force
+
+          # app-local VC++ 运行时（与 mini-pusher 同理：防目标机 redist 过旧）
+          $crt = Get-ChildItem "$env:VCToolsRedistDir\x64" -Directory -Filter 'Microsoft.VC*.CRT' |
+                   Sort-Object Name -Descending | Select-Object -First 1
+          foreach ($dll in 'vcruntime140.dll','vcruntime140_1.dll','msvcp140.dll') {
+            Copy-Item "$($crt.FullName)\$dll" -Destination release\ -Force
+          }
+
+          Get-ChildItem -Recurse release | Select-Object -ExpandProperty FullName
 
       - name: Upload package
         uses: actions/upload-artifact@v4
@@ -54,29 +69,53 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Qt
-        uses: jurplel/install-qt-action@v4
+      - name: Cache .deps
+        uses: actions/cache@v4
         with:
-          version: '6.8.3'
-          cache: true
+          path: ${{ github.workspace }}/.deps
+          key: deps-v1-macos-${{ hashFiles('CMakePresets.json') }}
 
       - name: Configure and Build with CMake
         run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
-          cmake --build build --config Release
+          cmake --preset macos-arm64
+          cmake --build --preset macos-arm64
 
       - name: Collect runtime dependencies
         run: |
-          mkdir -p release
+          set -euo pipefail
+          QT=.deps/obs-deps-qt6-2026-10-23-arm64
+          APP=release/demo-settings-macos.app
+          mkdir -p release "$APP/Contents/Frameworks" "$APP/Contents/PlugIns/platforms"
 
-          # 复制 .app bundle（CMake 已输出到 build/ 根）
-          cp -R build/demo-settings-macos.app release/
+          # 从 .deps 装配 bundle（obs-deps Qt 无 macdeployqt，最小集手动）
+          for fw in QtCore QtGui QtWidgets; do
+            cp -R "$QT/lib/$fw.framework" "$APP/Contents/Frameworks/"
+          done
+          cp "$QT/plugins/platforms/libqcocoa.dylib" "$APP/Contents/PlugIns/platforms/"
+          cp "$QT/plugins/platforms/libqoffscreen.dylib" "$APP/Contents/PlugIns/platforms/"
 
-          # 用 macdeployqt 把 Qt frameworks/plugins 内嵌进 bundle，并修复 install name
-          "${QT_ROOT_DIR}/bin/macdeployqt" release/demo-settings-macos.app
+          # rpath：主执行体与平台插件的 @rpath 引用经 ../Frameworks 解析
+          install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/demo-settings-macos" || true
+          install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/PlugIns/platforms/libqcocoa.dylib" || true
 
-          # 留证据：链接路径应全部指向 @rpath/@executable_path 的 app 内部 frameworks
-          otool -L release/demo-settings-macos.app/Contents/MacOS/demo-settings-macos
+          # arm64 强制签名：install_name_tool 修改后必须 ad-hoc 逐二进制重签
+          find "$APP/Contents/Frameworks" "$APP/Contents/PlugIns" -type f \( -name "Qt*" -o -name "*.dylib" \) -print0 |
+            xargs -0 -I{} codesign --force -s - {}
+          codesign --force -s - "$APP/Contents/MacOS/demo-settings-macos"
+          codesign --force -s - "$APP"
+
+          # 留证据：链接路径应全部指向 app 内部 frameworks
+          otool -L "$APP/Contents/MacOS/demo-settings-macos"
+          otool -L "$APP/Contents/PlugIns/platforms/libqcocoa.dylib" | head -10
+
+      - name: Smoke test (offscreen)
+        run: |
+          # 真跑：Qt 子集带 libqoffscreen，headless 起 app 2 秒不被杀即算加载链全通
+          QT_QPA_PLATFORM=offscreen release/demo-settings-macos.app/Contents/MacOS/demo-settings-macos &
+          pid=$!
+          sleep 2
+          kill -0 "$pid" && echo "SMOKE OK (pid $pid alive)" || { echo "SMOKE FAIL"; exit 1; }
+          kill "$pid"
 
       - name: Upload package
         uses: actions/upload-artifact@v4

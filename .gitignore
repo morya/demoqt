@@ -1,4 +1,5 @@
 build/
+.deps/
 CMakeLists.txt.user
 .qmake.stash
 *.pro.user
@@ -7,3 +8,4 @@ CMakeLists.txt.user
 .omo/*
 # 临时工作交接文档，仅本地留存，不入库
 handover.md
+release/

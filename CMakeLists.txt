@@ -1,17 +1,27 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 
 project(demo-settings VERSION 1.0.0 LANGUAGES CXX)
 
-# C++ 标准与 AUTOMOC
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_AUTOMOC ON)
 
+# OBS frontend 模型：Qt/FFmpeg系依赖不走系统或在线安装器，
+# configure 期从 obs-deps releases + CEF CDN 自动拉取（清单见 CMakePresets.json vendor）。
+# moc/uic/rcc 在 .deps/obs-deps-qt6-*/libexec（mac）或 bin（win），AUTOMOC 直接可用。
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(deps)
+_check_dependencies()
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
-# WIN32：Windows 下不弹 cmd 窗口；MACOSX_BUNDLE：macOS 下生成 .app
-# bundle（macdeployqt 只支持 bundle 形态，bare exe 无法内嵌 Qt frameworks）
-add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE main.cpp range_selector.cpp recorder.cpp chatbox.cpp
+# WIN32：Windows 下不弹 cmd 窗口；MACOSX_BUNDLE：macOS 下生成 .app bundle
+add_executable(${PROJECT_NAME} WIN32 MACOSX_BUNDLE
+    main.cpp
+    mainwin.cpp
+    range_selector.cpp
+    recorder.cpp
+    chatbox.cpp)
 
 # 产物名称：Windows 为 demo-settings.exe，macOS 为 demo-settings-macos(.app)
 if(APPLE)
